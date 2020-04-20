@@ -1,11 +1,9 @@
 # 
 # PyTorch Dataset module for acronym dataset
 #
-
 import os
 import csv
 import json
-
 from torch.utils.data import Dataset
 from torch.utils.data import Dataset, DataLoader
 
@@ -13,12 +11,12 @@ from torch.utils.data import Dataset, DataLoader
 from utils import  *
 
 class ArcronymDataset(Dataset):
-    def __init__(self, dataset_path = 'data/'):
+    def __init__(self, ROOT_DIR='', dataset_path = 'data/'):
         super().__init__()
         self.acronym_list = []
         self.end_of_text_token = "<|endoftext|>"
         
-        acronym_data_path = os.path.join(dataset_path, 'acronym_data.json')
+        acronym_data_path = os.path.join((ROOT_DIR + dataset_path), 'acronym_data.json')
         data = read_json(acronym_data_path)
         
         for entry in data:

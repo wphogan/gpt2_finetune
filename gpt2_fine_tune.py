@@ -12,165 +12,139 @@
 #     name: python37464bitanaconda3virtualenv6cea5baf3a944c8087a64ca66fd11a70
 # ---
 
-# # Fine-tuning GPT-2 on a jokes dataset in PyTorch
-#
-# This notebook was created as a part of a blog post - [Fine-tuning large Transformer models on a single GPU in PyTorch - Teaching GPT-2 a sense of humor](https://mf1024.github.io/2019/11/12/Fun-With-GPT-2/). Here I demonstrate how to fine-tune a pre-trained GPT-2 model on a jokes dataset. 
-#
-# #### If you haven't yet, check out the notebook in this [gist](https://gist.github.com/mf1024/430d7fd6ff527350d3e4b5bda0d8614e) where use the same pretrained model to generate text.
-
-# +
+# Fine-tuning GPT-2 in PyTorch
 import torch
-from transformers import GPT2Tokenizer, GPT2LMHeadModel, get_linear_schedule_with_warmup, AdamW
-import numpy as np
-
+import shutil
+import random
 import logging
-logging.getLogger().setLevel(logging.CRITICAL)
-
 import warnings
-warnings.filterwarnings('ignore')
+import numpy as np
+from transformers import GPT2Tokenizer, GPT2LMHeadModel, get_linear_schedule_with_warmup, AdamW
 
 # Local imports 
-from dataclass import *
 from utils import *
-# -
+from dataclass import *
 
+# Experiment tracking
+from sacred.run import Run
+from sacred import Experiment
+from sacred.observers import MongoObserver
+from zipfile import ZipFile, ZIP_DEFLATED
+
+# Experiment title and save location
+ex = Experiment('Acronym Resolution: GPT2 Fine Tuning')
+ex.observers.append(MongoObserver(url=os.getenv('CMI_MONGO_URI'), db_name='BACNORM_LPSN'))
+
+
+# System variables
+__ROOT_DIR = '' # Set this if on UCSD cluster
+random.seed(13)
+np.random.seed(13)
+
+# Use GPU if available
 device = 'cpu'
 if torch.cuda.is_available():
     device = 'cuda'
 
+@ex.config
+def config():
+    # Hyperparameters
+    epochs        = 5
+    batch_size    = 16
+    max_seq_len   = 400
+    warmup_steps  = 5000
+    learning_rate = 3e-5
+
+@ex.post_run_hook
+def post_run():
+    with ZipFile('artifacts.zip', 'w', ZIP_DEFLATED) as zfile:
+        for root, dirs, files in os.walk('out/'):
+            for file in files:
+                zfile.write(os.path.join(root, file))
+    ex.add_artifact('artifacts.zip')
+    os.remove('artifacts.zip')    
+   
+@ex.pre_run_hook
+def pre_run():
+    if os.path.exists('out/'):
+        shutil.rmtree('out/')
+    os.makedirs('out/')
+     
 # Get dataset
-# dataset = JokesDataset()
-# joke_loader = DataLoader(dataset, batch_size=1, shuffle=True)
-
-print('Processing data...', end=' ')
-dataset = ArcronymDataset()
-acronym_loader = DataLoader(dataset, batch_size=1, shuffle=True)
-print('processed.')
-
+def get_dataset():
+    print('Processing data...', end=' ')
+    dataset = ArcronymDataset(__ROOT_DIR)
+    acronym_loader = DataLoader(dataset, batch_size=1, shuffle=True)
+    print('processed.')
+    return acronym_loader
 
 # Init model
-print('Loading model and tokenizer...', end=' ')
-tokenizer = GPT2Tokenizer.from_pretrained('gpt2-medium')
-model = GPT2LMHeadModel.from_pretrained('gpt2-medium')
-model = model.to(device)
-print('loaded.')
+def get_model():
+    print('Loading model and tokenizer...', end=' ')
+    tokenizer = GPT2Tokenizer.from_pretrained('gpt2-medium')
+    model     = GPT2LMHeadModel.from_pretrained('gpt2-medium')
+    print('loaded.')
+    return tokenizer, model
 
-# ### Hyperparameters
-# For a parameter value starting point for fine-tuning, I inspired from [this](https://github.com/huggingface/transformers/blob/master/examples/run_squad.py) and [this](https://github.com/huggingface/transformers/blob/master/examples/run_glue.py) huggingface fine-tuning code.
-
-# +
-BATCH_SIZE = 16
-EPOCHS = 5
-LEARNING_RATE = 3e-5
-WARMUP_STEPS = 5000
-MAX_SEQ_LEN = 400
-# -
-
-# ### Model training
-#
-# I will train the model and save the model weights after each epoch and then I will try to generate jokes with each version of the weight to see which performs the best.
-
-# +
-model = model.to(device)
-model.train()
-optimizer = AdamW(model.parameters(), lr=LEARNING_RATE)
-scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=WARMUP_STEPS, num_training_steps = -1)
-proc_seq_count = 0
-sum_loss = 0.0
-batch_count = 0
-
-input_tmp_acronym_tens = None
-models_folder = "trained_models"
-if not os.path.exists(models_folder):
-    os.mkdir(models_folder)
-
-print('Starting model...')
-for epoch in range(EPOCHS):
+@ex.automain
+def run_experiment(_run: Run, epochs: int, batch_size: int, warmup_steps: int, max_seq_len: int,
+                   learning_rate: float):
     
-    print(f"EPOCH {epoch} started" + '=' * 30)
+    # Load tokenizer and model
+    tokenizer, model = get_model()
     
-    for idx,acronym in enumerate(acronym_loader):
-        input = acronym[1][0]
-        target = acronym[2][0]
-        
-        
-        
-        ##### QUESTION!! PADDING ADDED TO START OR END OF TENSOR?
-        ##### DOES THAT CHANGE FOR INPUT VS TARGET TENSORS?
-        input_acronym_tens, target_acronym_tens  = padded_tensors(tokenizer, input, target, device)
+    # Load dataset
+    acronym_loader = get_dataset()
 
-        outputs = model(input_acronym_tens, labels=target_acronym_tens)
-        loss, logits = outputs[:2]                        
-        loss.backward()
-        sum_loss = sum_loss + loss.detach().data
-                       
-        proc_seq_count = proc_seq_count + 1
-        if proc_seq_count == BATCH_SIZE:
-            proc_seq_count = 0    
-            batch_count += 1
-            optimizer.step()
-            scheduler.step() 
-            optimizer.zero_grad()
-            model.zero_grad()
+    # Set optimizer, scheduler, and vars
+    model = model.to(device)
+    model.train()
+    optimizer      = AdamW(model.parameters(), lr=learning_rate)
+    scheduler      = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps = -1)
+    proc_seq_count = 0
+    sum_loss       = 0.0
+    batch_count    = 0
 
-        if batch_count == 100:
-            print(f"sum loss {sum_loss}")
-            batch_count = 0
-            sum_loss = 0.0
+    models_folder = __ROOT_DIR + "trained_models"
+    if not os.path.exists(models_folder):
+        os.mkdir(models_folder)
+
+    print('Starting model...')
     
-    # Store the model after each epoch to compare the performance of them
-    torch.save(model.state_dict(), os.path.join(models_folder, f"gpt2_medium_acronym_{epoch}.pt"))
+    for epoch in range(epochs):     
+        print(f"EPOCH {epoch} started" + '=' * 30)
+        
+        for idx ,acronym in enumerate(acronym_loader):
+            if idx == 0 or idx == 1 or idx % 200 == 0:
+                print("Iteration: ", idx)
+
+            input = acronym[1][0]
+            target = acronym[2][0]
             
-# -
-# ### Generating the sequences
-# +
-MODEL_EPOCH = 4
+            ##### QUESTION!! PADDING ADDED TO START OR END OF TENSOR?
+            ##### DOES THAT CHANGE FOR INPUT VS TARGET TENSORS?
+            input_acronym_tens, target_acronym_tens  = padded_tensors(tokenizer, input, target, device)
 
-models_folder = "trained_models"
+            outputs = model(input_acronym_tens, labels=target_acronym_tens)
+            loss, logits = outputs[:2]                        
+            loss.backward()
+            sum_loss = sum_loss + loss.detach().data
+                        
+            proc_seq_count = proc_seq_count + 1
+            if proc_seq_count == batch_size:
+                proc_seq_count = 0    
+                batch_count += 1
+                optimizer.step()
+                scheduler.step() 
+                optimizer.zero_grad()
+                model.zero_grad()
 
-model_path = os.path.join(models_folder, f"gpt2_medium_acronym_{MODEL_EPOCH}.pt")
-model.load_state_dict(torch.load(model_path))
-
-acronyms_output_file_path = f'generated_{MODEL_EPOCH}.sequences'
-
-model.eval()
-if os.path.exists(acronyms_output_file_path):
-    os.remove(acronyms_output_file_path)
-    
-acronym_num = 0
-with torch.no_grad():
-   
-        for acronym_idx in range(1000):
+            if batch_count == 100:
+                print(f"sum loss {sum_loss}")
+                batch_count = 0
+                sum_loss = 0.0
         
-            acronym_finished = False
-
-            cur_ids = torch.tensor(tokenizer.encode("JOKE:")).unsqueeze(0).to(device)
-
-            for i in range(100):
-                outputs = model(cur_ids, labels=cur_ids)
-                loss, logits = outputs[:2]
-                softmax_logits = torch.softmax(logits[0,-1], dim=0) #Take the first(from only one in this case) batch and the last predicted embedding
-                if i < 3:
-                    n = 20
-                else:
-                    n = 3
-                next_token_id = choose_from_top(softmax_logits.to('cpu').numpy(), n=n) #Randomly(from the topN probability distribution) select the next word
-                cur_ids = torch.cat([cur_ids, torch.ones((1,1)).long().to(device) * next_token_id], dim = 1) # Add the last word to the running sequence
-
-                if next_token_id in tokenizer.encode('<|endoftext|>'):
-                    acronym_finished = True
-                    break
-
-            
-            if acronym_finished:
-                
-                acronym_num = acronym_num + 1
-                
-                output_list = list(cur_ids.squeeze().to('cpu').numpy())
-                output_text = tokenizer.decode(output_list)
-
-                with open(acronym_output_file_path, 'a') as f:
-                    f.write(f"{output_text} \n\n")
-                    
-      
-# 3rd epoch model seemed to perform the best.
+        # Store the model after each epoch to compare the performance of them
+        torch.save(model.state_dict(), os.path.join(models_folder, f"gpt2_medium_acronym_{epoch}.pt"))
+        
+    print('Training complete.')
