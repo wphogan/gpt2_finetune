@@ -4,3 +4,4 @@ out/ar_progress.txt
 out/ar_slurm_progress.err
 out/ar_slurm_progress.log
 out/*
+out/**/
