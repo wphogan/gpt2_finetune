@@ -1,0 +1,5 @@
+out/ar_progress.errors
+out/ar_progress.outputs
+out/ar_progress.txt
+out/ar_slurm_progress.err
+out/ar_slurm_progress.log
