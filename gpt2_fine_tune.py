@@ -30,13 +30,14 @@ np.random.seed(13)
 
 
 # Directory settings
-__ROOT_DIR       = '' # Set this if on UCSD cluster
+__ROOT_DIR       = os.getcwd()
 __OUT_DIR        = __ROOT_DIR +'out/' + __TIMESTAMP + '/' # Where outputs are saved
 __MODEL_DIR      = __OUT_DIR  + 'trained_models/' # Where model is saved for reuse
 
 make_directory(__OUT_DIR)
 make_directory(__MODEL_DIR)
 
+print("Root directory: {}".format(__ROOT_DIR))
 # Use GPU if available
 device = 'cpu'
 if torch.cuda.is_available():
