@@ -17,4 +17,4 @@ export LD_PRELOAD=/home/whogan/.conda/envs/latest_python/lib/libstdc++.so.6.0.26
 source /opt/miniconda3/bin/activate latest_python
 
 # Main file
-python /projects/ibm_aihl/whogan/acronym_resolution/out/gpt2_fine_tune.py
+python /projects/ibm_aihl/whogan/acronym_resolution/gpt2_fine_tune.py

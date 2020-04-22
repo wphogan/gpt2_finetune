@@ -18,7 +18,7 @@ echo started ... >> /projects/ibm_aihl/whogan/acronym_resolution/out/ar_progress
 hostname >> /projects/ibm_aihl/whogan/acronym_resolution/out/ar_progress.txt
 
 # Main file
-python /projects/ibm_aihl/whogan/acronym_resolution/out/gpt2_fine_tune.py
+python /projects/ibm_aihl/whogan/acronym_resolution/gpt2_fine_tune.py
 
 # Final processing output
 echo done ... >> /projects/ibm_aihl/whogan/acronym_resolution/out/ar_progress.txt
