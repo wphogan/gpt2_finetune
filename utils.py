@@ -1,19 +1,18 @@
+import os
 import json
 import torch 
+import logging
 import torch.nn.functional as F
 import numpy as np
 
-def choose_from_top(probs, n=1):
-    """
-    Used to generate text
-    """
-    ind = np.argpartition(probs, -n)[-n:]
-    top_prob = probs[ind]
-    top_prob = top_prob / np.sum(top_prob) # Normalize
-    choice = np.random.choice(n, 1, p = top_prob)
-    token_id = ind[choice][0]
-    return int(token_id)
+logger = logging.getLogger()
 
+def make_directory(directory):
+    try:
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+    except Exception:
+        logger.warn("Error -- could not create directory.")
 
 def read_json(filename) :
     """
@@ -48,3 +47,34 @@ def padded_tensors(tokenizer, input, target, device='cpu'):
     assert input.shape == target.shape
     
     return input.unsqueeze(0), target.unsqueeze(0)
+
+def logits_to_text(logits, tokenizer):
+    """
+    Converts model's output logits to text and tokens
+    """
+    softmax_logits = torch.softmax(logits.squeeze(0).detach(), dim=1) #Take the first(from only one in this case) batch and the last predicted embedding
+    token_ids      = torch.argmax(softmax_logits, dim=1)
+    output_list    = list(token_ids.squeeze().to('cpu').numpy())
+    output_text    = tokenizer.decode(output_list)
+    return output_text, token_ids
+    
+        
+def save_sample_outputs(file_path, target_text, output_text, epoch, loss, accuracy):
+    """
+    Saves a sample output text paired with the target text
+    """
+    file_path = file_path + f'/generated_{epoch}.sequences'
+    with open(file_path, 'a') as f:
+        f.write("EPOCH: {}, LOSS: {}, ACCURCY: {}\n".format(epoch, loss, accuracy))
+        f.write("TARGET TEXT: " + f"{target_text}\n")
+        f.write("OUTPUT TEXT: " + f"{output_text}\n")
+        f.write("=" * 30 + "\n\n")
+
+def calc_accuracy(target_tokens, output_tokens):
+    """
+    Calculates accuracy of generted sequences versus target sequences
+    """
+    correct  = (target_tokens.squeeze(0) == output_tokens).float().sum()
+    total    = target_tokens.shape[1]
+    accuracy = float(correct.item() / total)
+    return accuracy

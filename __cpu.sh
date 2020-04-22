@@ -8,6 +8,9 @@
 #PBS -N gpt2_ar_v1
 
 # Manual env setup
+export LD_PRELOAD=/home/whogan/.conda/envs/latest_python/lib/libstdc++.so.6.0.26
+export CMI_MONGO_URI='mongodb://admin:AQTIOGCRVSHQASOS@portal-ssl178-46.bmix-dal-yp-d8bbba24-8b33-45c4-83f2-ec5cec265a60.2473981325.composedb.com:17476/compose?authSource=admin&ssl=true&retryWrites=false'
+
 source /opt/miniconda3/bin/activate latest_python
 
 # Processing outputs
