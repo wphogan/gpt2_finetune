@@ -11,18 +11,17 @@ from torch.utils.data import Dataset, DataLoader
 from utils import  *
 
 class ArcronymDataset(Dataset):
-    def __init__(self, ROOT_DIR='', dataset_path = 'data/'):
+    def __init__(self, tokenizer, ROOT_DIR='', dataset_path = 'data/'):
         super().__init__()
         self.acronym_list = []
-        self.end_of_text_token = "<|endoftext|>"
         
         acronym_data_path = os.path.join((ROOT_DIR + dataset_path), 'acronym_data.json')
         data = read_json(acronym_data_path)
         
         for entry in data:
             entry_id        = entry          
-            inputs          = str(data[entry]['inputs']) + str(self.end_of_text_token)
-            targets         = str(data[entry]['targets']) + str(self.end_of_text_token)
+            inputs          = str(data[entry]['inputs']) + tokenizer.eos_token
+            targets         = tokenizer.bos_token + str(data[entry]['targets']) + tokenizer.eos_token
             entryId_input_target = [entry_id, inputs, targets]
             self.acronym_list.append(entryId_input_target)
             

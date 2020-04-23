@@ -61,15 +61,21 @@ def post_run():
     os.remove('artifacts.zip')    
      
 # Get dataset
-def get_dataset():
-    dataset = ArcronymDataset(__ROOT_DIR)
+def get_dataset(tokenizer):
+    dataset = ArcronymDataset(tokenizer, __ROOT_DIR)
     acronym_loader = DataLoader(dataset, batch_size=1, shuffle=True)
     return acronym_loader
 
 # Init model
 def get_model():
-    tokenizer = GPT2Tokenizer.from_pretrained('gpt2-medium')
-    model     = GPT2LMHeadModel.from_pretrained('gpt2-medium')
+    model                = GPT2LMHeadModel.from_pretrained('gpt2-medium')
+    tokenizer            = GPT2Tokenizer.from_pretrained('gpt2-medium')
+    tokenizer.bos_token  = '<|startoftext|>'
+    tokenizer.eos_token  = '<|endoftext|>'
+    tokenizer.mask_token = '<|maskedtext|>'
+    tokenizer.pad_token  = '<|pad|>'
+    tokenizer.sep_token  = '<|sep|>'
+    tokenizer.cls_token  = '<|cls|>'
     return tokenizer, model
 
 @ex.capture
@@ -97,7 +103,7 @@ def run_experiment(_log, _run: Run, epochs: int, batch_size: int, warmup_steps: 
     
     # Load dataset
     log_message(_log, message="Pre-processing data.")
-    acronym_loader = get_dataset()
+    acronym_loader = get_dataset(tokenizer)
     log_message(_log, message="Pre-process complete.")
 
     # Set optimizer, scheduler, and vars
@@ -166,7 +172,7 @@ def run_experiment(_log, _run: Run, epochs: int, batch_size: int, warmup_steps: 
                 log_message(_log, log_type='info', message=msg)
                 
                 # Save model generated vs target text
-                save_sample_outputs(__OUT_DIR, target_text, output_text, epoch, loss.item(), accuracy)
+                save_sample_outputs(__OUT_DIR, entry_id, target_text, output_text, epoch, loss.item(), accuracy)
 
             # =========
             # END EPOCH

@@ -30,22 +30,9 @@ def padded_tensors(tokenizer, input, target, device='cpu'):
     Function that takes input and target strings and creates tokenized 
     tensors, with added padding to match sizes
     """
-    input  = torch.tensor(tokenizer.encode(input)).to(device)
-    target = torch.tensor(tokenizer.encode(target)).to(device)
-    
-    input_shape  = input.shape[0]
-    target_shape = target.shape[0]
-    
-    if input_shape > target_shape:
-        diff   = input_shape - target_shape
-        target = F.pad(target,(0,diff), "constant", 0)
-    
-    elif input_shape < target_shape:
-        diff  = target_shape - input_shape
-        input = F.pad(input,(0,diff), "constant", 0)
-
+    input  = torch.tensor(tokenizer.encode(input, pad_to_max_length=True, padding_side='right', return_attention_masks=True )).to(device)
+    target = torch.tensor(tokenizer.encode(target, pad_to_max_length=True, padding_side='left' )).to(device)
     assert input.shape == target.shape
-    
     return input.unsqueeze(0), target.unsqueeze(0)
 
 def logits_to_text(logits, tokenizer):
@@ -59,14 +46,14 @@ def logits_to_text(logits, tokenizer):
     return output_text, token_ids
     
         
-def save_sample_outputs(file_path, target_text, output_text, epoch, loss, accuracy):
+def save_sample_outputs(file_path, entry_id, target_text, output_text, epoch, loss, accuracy):
     """
     Saves a sample output text paired with the target text
     """
     file_path = file_path + f'/generated_{epoch}.sequences'
     with open(file_path, 'a') as f:
         f.write("EPOCH: {}, LOSS: {}, ACCURCY: {}\n".format(epoch, loss, accuracy))
-        f.write("ID: " + f"{target_text}\n")
+        f.write("ID: " + f"{entry_id}\n")
         f.write("TARGET TEXT: " + f"{target_text}\n")
         f.write("OUTPUT TEXT: " + f"{output_text}\n\n")
 
