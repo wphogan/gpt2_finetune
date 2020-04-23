@@ -30,8 +30,7 @@ np.random.seed(13)
 
 
 # Directory settings
-x = os.getenv('CMI_MONGO_URI')
-__ROOT_DIR       = os.getenv('ACRONYM_RESOLVER_DIR')
+__ROOT_DIR       = '' # Set this on UCSD cluster
 __OUT_DIR        = __ROOT_DIR +'out/' + __TIMESTAMP + '/' # Where outputs are saved
 __MODEL_DIR      = __OUT_DIR  + 'trained_models/' # Where model is saved for reuse
 

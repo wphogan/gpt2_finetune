@@ -51,6 +51,7 @@ def save_sample_outputs(file_path, entry_id, target_text, output_text, epoch, lo
     Saves a sample output text paired with the target text
     """
     file_path = file_path + f'/generated_{epoch}.sequences'
+    output_text = output_text.split('<|endoftext|>')[0]
     with open(file_path, 'a') as f:
         f.write("EPOCH: {}, LOSS: {}, ACCURCY: {}\n".format(epoch, loss, accuracy))
         f.write("ID: " + f"{entry_id}\n")

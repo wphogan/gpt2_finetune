@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --partition=gpu
-#SBATCH --time=7-00:00
+#SBATCH --time=3-00:00
 #SBATCH --mail-user=whogan@ucsd.edu
 #SBATCH --mail-type=ALL
-#SBATCH --job-name=cnn_and_lstm
+#SBATCH --job-name=gpt2_finetune
 #SBATCH --mem=32GB
 #SBATCH --output "%x.%j.%N.out"
 #SBATCH --get-user-env=L
