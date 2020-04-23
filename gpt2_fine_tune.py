@@ -30,14 +30,13 @@ np.random.seed(13)
 
 
 # Directory settings
-__ROOT_DIR       = os.getcwd()
+__ROOT_DIR       = ''
 __OUT_DIR        = __ROOT_DIR +'out/' + __TIMESTAMP + '/' # Where outputs are saved
 __MODEL_DIR      = __OUT_DIR  + 'trained_models/' # Where model is saved for reuse
 
 make_directory(__OUT_DIR)
 make_directory(__MODEL_DIR)
 
-print("Root directory: {}".format(__ROOT_DIR))
 # Use GPU if available
 device = 'cpu'
 if torch.cuda.is_available():
@@ -119,7 +118,8 @@ def run_experiment(_log, _run: Run, epochs: int, batch_size: int, warmup_steps: 
         for idx ,acronym in enumerate(acronym_loader):
             if idx == 0 or idx % 100 == 0:
                 log_message(_log, log_type='info', message=("Iteration: "+ str(idx) ))
-                
+            
+            entry_id    = acronym[0][0]
             input_text  = acronym[1][0]
             target_text = acronym[2][0]
             

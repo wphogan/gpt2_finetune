@@ -22,8 +22,8 @@ def read_json(filename) :
         with open(filename) as json_file:
             data = json.load(json_file)
         return data
-    except:
-        return False
+    except Exception:
+        raise ValueError('Could not read json file: {}'.format(filename))
 
 def padded_tensors(tokenizer, input, target, device='cpu'):
     """
@@ -66,9 +66,9 @@ def save_sample_outputs(file_path, target_text, output_text, epoch, loss, accura
     file_path = file_path + f'/generated_{epoch}.sequences'
     with open(file_path, 'a') as f:
         f.write("EPOCH: {}, LOSS: {}, ACCURCY: {}\n".format(epoch, loss, accuracy))
+        f.write("ID: " + f"{target_text}\n")
         f.write("TARGET TEXT: " + f"{target_text}\n")
-        f.write("OUTPUT TEXT: " + f"{output_text}\n")
-        f.write("=" * 30 + "\n\n")
+        f.write("OUTPUT TEXT: " + f"{output_text}\n\n")
 
 def calc_accuracy(target_tokens, output_tokens):
     """
