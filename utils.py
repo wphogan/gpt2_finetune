@@ -33,7 +33,7 @@ def padded_tensors(tokenizer, input, target, device='cpu'):
     input  = torch.tensor(tokenizer.encode(input, pad_to_max_length=True, padding_side='right', return_attention_masks=True )).to(device)
     target = torch.tensor(tokenizer.encode(target, pad_to_max_length=True, padding_side='left' )).to(device)
     assert input.shape == target.shape
-    return input.unsqueeze(0), target.unsqueeze(0)
+    return input.unsqueeze(0).to(device), target.unsqueeze(0).to(device)
 
 def logits_to_text(logits, tokenizer):
     """

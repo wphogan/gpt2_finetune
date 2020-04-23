@@ -37,11 +37,6 @@ __MODEL_DIR      = __OUT_DIR  + 'trained_models/' # Where model is saved for reu
 make_directory(__OUT_DIR)
 make_directory(__MODEL_DIR)
 
-# Use GPU if available
-device = 'cpu'
-if torch.cuda.is_available():
-    device = 'cuda'
-
 @ex.config
 def config():
     # Hyperparameters
@@ -106,9 +101,19 @@ def run_experiment(_log, _run: Run, epochs: int, batch_size: int, warmup_steps: 
     acronym_loader = get_dataset(tokenizer)
     log_message(_log, message="Pre-process complete.")
 
+    # GPU / CPU setting:
+    if torch.cuda.is_available():
+        device = 'cuda'
+        log_message(_log, message="Nice! Using GPU.")
+    else: 
+        device = 'cpu'
+        log_message(_log, log_type='warning', message="Watch out! Using CPU.")
+        
+    model     = model.to(device)
+    tokenizer = tokenizer.to(device)
+
     # Set optimizer, scheduler, and vars
     log_message(_log, message="Starting model...")
-    model = model.to(device)
     model.train()
     optimizer      = AdamW(model.parameters(), lr=learning_rate)
     scheduler      = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps = -1)
@@ -122,7 +127,7 @@ def run_experiment(_log, _run: Run, epochs: int, batch_size: int, warmup_steps: 
         log_message(_log, log_type='info', message=epoch_log) 
         
         for idx ,acronym in enumerate(acronym_loader):
-            if idx == 0 or idx % 100 == 0:
+            if idx == 0 or idx == 10 or idx % 100 == 0:
                 log_message(_log, log_type='info', message=("Iteration: "+ str(idx) ))
             
             entry_id    = acronym[0][0]
@@ -159,7 +164,7 @@ def run_experiment(_log, _run: Run, epochs: int, batch_size: int, warmup_steps: 
             output_text, output_tokens = logits_to_text(logits, tokenizer)
             
             # Calculate accuracy
-            accuracy = calc_accuracy(target_tokens, output_tokens)
+            accuracy = calc_accuracy(target_tokens.to(device), output_tokens.to(device))
             
             # Record current progress
             if idx % 200 == 0:
