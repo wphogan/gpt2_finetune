@@ -40,7 +40,7 @@ make_directory(__MODEL_DIR)
 @ex.config
 def config():
     # Hyperparameters
-    epochs        = 5
+    epochs        = 100
     batch_size    = 16
     max_seq_len   = 400
     warmup_steps  = 5000
