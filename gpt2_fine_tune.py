@@ -30,7 +30,7 @@ np.random.seed(13)
 
 
 # Directory settings
-__ROOT_DIR       = '' # Set this on UCSD cluster
+__ROOT_DIR       = '' # /projects/ibm_aihl/whogan/acronym_resolution/
 __OUT_DIR        = __ROOT_DIR +'out/' + __TIMESTAMP + '/' # Where outputs are saved
 __MODEL_DIR      = __OUT_DIR  + 'trained_models/' # Where model is saved for reuse
 
@@ -56,79 +56,75 @@ def post_run():
     os.remove('artifacts.zip')    
      
 # Get dataset
-def get_dataset(tokenizer):
+def get_dataset(_log, tokenizer):
+    log_message(_log, message="Pre-processing data.")
     dataset = ArcronymDataset(tokenizer, __ROOT_DIR)
     acronym_loader = DataLoader(dataset, batch_size=1, shuffle=True)
+    log_message(_log, message="Pre-process complete.")
     return acronym_loader
 
 # Init model
-def get_model():
-    model                = GPT2LMHeadModel.from_pretrained('gpt2-medium')
-    tokenizer            = GPT2Tokenizer.from_pretrained('gpt2-medium')
+def get_model(_log):
+    log_message(_log, message="Loading model and tokenizer...")
+    model                = GPT2LMHeadModel.from_pretrained('gpt2-large')
+    tokenizer            = GPT2Tokenizer.from_pretrained('gpt2-large')
     tokenizer.bos_token  = '<|startoftext|>'
     tokenizer.eos_token  = '<|endoftext|>'
     tokenizer.mask_token = '<|maskedtext|>'
     tokenizer.pad_token  = '<|pad|>'
     tokenizer.sep_token  = '<|sep|>'
     tokenizer.cls_token  = '<|cls|>'
+    log_message(_log, message="Loaded.")
     return tokenizer, model
-
-@ex.capture
-def log_message(_log, log_type='info', message='Logging test.'):
-    """
-    Function to handle all Sacred logging.
-    Inputs:
-    Log type takes in debug, info, warning, error, critical.
-    Message is the message that is logged.
-    """
-    if   log_type == 'info' : _log.info(message)
-    elif log_type == 'debug' : _log.debug(message)
-    elif log_type == 'warning' : _log.warning(message)
-    elif log_type == 'error' : _log.error(message)
-    elif log_type == 'critical' : _log.critical(message)
-    
+        
 @ex.automain
 def run_experiment(_log, _run: Run, epochs: int, batch_size: int, warmup_steps: int, max_seq_len: int,
                    learning_rate: float):
+    # Start experiment timer
+    timer_experiment = Timer()
     
     # Load tokenizer and model
-    log_message(_log, message="Loading model and tokenizer...")
-    tokenizer, model = get_model()
-    log_message(_log, message="Loaded.")
+    tokenizer, model = get_model(_log)
     
     # Load dataset
-    log_message(_log, message="Pre-processing data.")
-    acronym_loader = get_dataset(tokenizer)
-    log_message(_log, message="Pre-process complete.")
+    acronym_loader = get_dataset(_log, tokenizer)
 
     # GPU / CPU setting:
-    if torch.cuda.is_available():
-        device = 'cuda'
-        log_message(_log, message="Nice! Using GPU.")
-    else: 
-        device = 'cpu'
-        log_message(_log, log_type='warning', message="Watch out! Using CPU.")
+    device = set_device(_log)
         
-    model     = model.to(device)
-    tokenizer = tokenizer.to(device)
-
     # Set optimizer, scheduler, and vars
     log_message(_log, message="Starting model...")
-    model.train()
     optimizer      = AdamW(model.parameters(), lr=learning_rate)
     scheduler      = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps = -1)
     proc_seq_count = 0
     sum_loss       = 0.0
     batch_count    = 0
     
+    # Set model to train mode
+    model = model.to(device)
+    model.train()
     
-    for epoch in range(epochs):    
+    ##
+    ## ADD TRAIN/VAL/TEST Splits
+    ## model.eval
+    ##
+    
+    for epoch in range(epochs):     
+        # =========
+        # START EPOCH
+        # =========  
+         
+        # Logging
         epoch_log = '=' * 10 + f" EPOCH {epoch} started " + '=' * 10
         log_message(_log, log_type='info', message=epoch_log) 
         
-        for idx ,acronym in enumerate(acronym_loader):
+        # Start Timers
+        timer_epoch     = Timer()
+        timer_iteration = Timer()
+        
+        for idx ,acronym in enumerate(acronym_loader):            
             if idx == 0 or idx == 10 or idx % 100 == 0:
-                log_message(_log, log_type='info', message=("Iteration: "+ str(idx) ))
+                log_message(_log, log_type='debug', message=("Iteration: "+ str(idx) ))
             
             entry_id    = acronym[0][0]
             input_text  = acronym[1][0]
@@ -155,7 +151,7 @@ def run_experiment(_log, _run: Run, epochs: int, batch_size: int, warmup_steps: 
 
             if batch_count == 100:
                 log_sum_loss = f"sum loss {sum_loss}"
-                log_message(_log, log_type='info', message=log_sum_loss)
+                log_message(_log, message=log_sum_loss)
                 
                 batch_count = 0
                 sum_loss = 0.0
@@ -168,24 +164,32 @@ def run_experiment(_log, _run: Run, epochs: int, batch_size: int, warmup_steps: 
             
             # Record current progress
             if idx % 200 == 0:
+                
+                # Record time to complete 200 iterations, reset timer
+                log_message(_log, message=(f'Time to complete 200 iterations, epoch {epoch}: {timer_iteration}.'))    
+                timer_iteration = Timer()
+                        
                 # Record loss and accuracy
                 _run.log_scalar("training.loss", loss.item())
                 _run.log_scalar("training.accuracy", accuracy) 
                 
                 # Log loss and accuracy for debugging purposes
                 msg = "Loss: {}, Accuracy: {}".format(loss.item(), accuracy)
-                log_message(_log, log_type='info', message=msg)
+                log_message(_log, message=msg)
                 
                 # Save model generated vs target text
                 save_sample_outputs(__OUT_DIR, entry_id, target_text, output_text, epoch, loss.item(), accuracy)
-
-            # =========
-            # END EPOCH
-            # =========
+                
+            # END ITERATIONS
 
         # Save the model after each epoch
-        log_message(_log, log_type='info', message="Saving model...")
-        torch.save(model.state_dict(), os.path.join(__MODEL_DIR, f"gpt2_medium_acronym_{epoch}.pt"))
-        log_message(_log, log_type='info', message="Saved.")
-        
+        log_message(_log, message=(f'Time to complete epoch {epoch}: {timer_epoch}.'))    
+        save_model(_log, __MODEL_DIR, epoch, model)
+
+        # =========
+        # END EPOCH
+        # =========
+
+    
+    log_message(_log, message=(f'Time to complete entire experiment: {timer_experiment}.'))
     print('Training complete.')

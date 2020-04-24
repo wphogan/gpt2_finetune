@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --partition=gpu
-#SBATCH --time=3-00:00
+#SBATCH --time=5-00:00
 #SBATCH --mail-user=whogan@ucsd.edu
 #SBATCH --mail-type=ALL
 #SBATCH --job-name=gpt2_finetune
